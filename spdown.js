@@ -1,146 +1,118 @@
 const express = require('express');
 const axios = require('axios');
-const cheerio = require('cheerio');
-const cors = require('cors');
+const qs = require('qs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+const client_id = '414df719f85e45c9bd0ee5e83d08b501';
+const client_secret = 'fa7e159a0b904b8b8505bf59b6458d3a';
 
 const getSpotifyAccessToken = async () => {
-  const client_id = '414df719f85e45c9bd0ee5e83d08b501';
-  const client_secret = 'fa7e159a0b904b8b8505bf59b6458d3a';
+    try {
+        const response = await axios.post('https://accounts.spotify.com/api/token', 
+            qs.stringify({ grant_type: 'client_credentials' }), 
+            {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    Authorization: `Basic ${Buffer.from(`${client_id}:${client_secret}`).toString('base64')}`
+                }
+            }
+        );
+        return response.data.access_token;
+    } catch (error) {
+        throw new Error('Error fetching Spotify access token');
+    }
+};
 
-  try {
-    const response = await axios.post('https://accounts.spotify.com/api/token',
-      new URLSearchParams({ grant_type: 'client_credentials' }).toString(),
-      {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Basic ${Buffer.from(`${client_id}:${client_secret}`).toString('base64')}`
-        }
-      }
-    );
-    return response.data.access_token;
-  } catch (error) {
-    throw new Error('Error fetching Spotify access token');
-  }
+const getSpotifyTrackDetails = async (url) => {
+    try {
+        const response = await axios.get(`https://api.fabdl.com/spotify/get?url=${url}`);
+        return response.data.result;
+    } catch (error) {
+        throw new Error('Error fetching Spotify track details');
+    }
+};
+
+const getDownloadLink = async (gid, track_id) => {
+    try {
+        const response = await axios.get(`https://api.fabdl.com/spotify/mp3-convert-task/${gid}/${track_id}`);
+        return response.data.result;
+    } catch (error) {
+        throw new Error('Error fetching download link');
+    }
 };
 
 const getTrackMetadata = async (trackId, accessToken) => {
-  try {
-    const response = await axios.get(`https://api.spotify.com/v1/tracks/${trackId}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
+    try {
+        const response = await axios.get(`https://api.spotify.com/v1/tracks/${trackId}`, {
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
 
-    const track = response.data;
-    return {
-      id: track.id,
-      title: track.name,
-      artists: track.artists.map(a => a.name).join(', '),
-      album: track.album.name,
-      releaseDate: track.album.release_date,
-      duration: new Date(track.duration_ms).toISOString().substr(14, 5),
-      duration_ms: track.duration_ms,
-      image: track.album.images[0]?.url || '',
-      spotify_url: track.external_urls.spotify,
-      popularity: track.popularity,
-      isrc: track.external_ids?.isrc || 'N/A'
-    };
-  } catch (error) {
-    throw new Error('Error fetching track metadata');
-  }
-};
-
-const getSpotmateDownload = async (spotifyUrl) => {
-  try {
-    const homepage = await axios.get('https://spotmate.online', {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Accept': 'text/html'
-      }
-    });
-
-    const $ = cheerio.load(homepage.data);
-    const csrfToken = $('meta[name="csrf-token"]').attr('content');
-
-    const setCookie = homepage.headers['set-cookie'];
-    let sessionCookie = '';
-    if (setCookie) {
-      for (const cookie of setCookie) {
-        if (cookie.startsWith('spotmateonline_session=')) {
-          sessionCookie = cookie.split(';')[0];
-          break;
-        }
-      }
+        const track = response.data;
+        return {
+            id: track.id,
+            title: track.name,
+            artists: track.artists.map((artist) => artist.name).join(", "),
+            album: track.album.name,
+            releaseDate: track.album.release_date,
+            duration: new Date(track.duration_ms).toISOString().substr(14, 5),
+            duration_ms: track.duration_ms,
+            image: track.album.images[0]?.url || "",
+            spotify_url: track.external_urls.spotify,
+            popularity: track.popularity,
+        };
+    } catch (error) {
+        throw new Error('Error fetching track metadata');
     }
-
-    const convertRes = await axios.post(
-      'https://spotmate.online/convert',
-      { urls: spotifyUrl },
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'x-csrf-token': csrfToken,
-          'cookie': sessionCookie,
-          'User-Agent': 'Mozilla/5.0',
-          'referer': 'https://spotmate.online/en',
-          'origin': 'https://spotmate.online'
-        }
-      }
-    );
-
-    if (convertRes.data.error || !convertRes.data.url) {
-      throw new Error('Failed to get download link');
-    }
-
-    return convertRes.data.url;
-  } catch (err) {
-    throw new Error('Error fetching Spotmate download link');
-  }
 };
 
 app.get('/spotify/down', async (req, res) => {
-  const spotifyUrl = req.query.url;
-  if (!spotifyUrl) {
-    return res.status(400).json({ status: false, message: 'Spotify URL is required' });
-  }
+    const spotifyUrl = req.query.url;
 
-  try {
-    const trackId = spotifyUrl.split('/track/')[1]?.split('?')[0];
-    if (!trackId) return res.status(400).json({ status: false, message: 'Invalid Spotify track URL' });
+    if (!spotifyUrl) {
+        return res.status(400).json({ status: false, message: 'Spotify URL is required' });
+    }
 
-    const accessToken = await getSpotifyAccessToken();
-    const metadata = await getTrackMetadata(trackId, accessToken);
-    const downloadLink = await getSpotmateDownload(spotifyUrl);
+    try {
+        const trackDetails = await getSpotifyTrackDetails(spotifyUrl);
+        const { gid, id, name, image, artists, duration_ms } = trackDetails;
+        const downloadTask = await getDownloadLink(gid, id);
 
-    res.json({
-      status: true,
-      id: metadata.id,
-      title: metadata.title,
-      artist: metadata.artists,
-      album: metadata.album,
-      releaseDate: metadata.releaseDate,
-      duration: metadata.duration,
-      duration_ms: metadata.duration_ms,
-      image: metadata.image,
-      spotify_url: metadata.spotify_url,
-      popularity: metadata.popularity,
-      isrc: metadata.isrc,
-      download_link: downloadLink
-    });
+        if (!downloadTask.download_url) {
+            return res.status(500).json({ status: false, message: 'Failed to retrieve download link' });
+        }
 
-  } catch (error) {
-    console.error('Error:', error.message);
-    res.status(500).json({ status: false, message: error.message || 'Internal server error' });
-  }
+        const accessToken = await getSpotifyAccessToken();
+        const trackMetadata = await getTrackMetadata(id, accessToken);
+
+        const finalResult = {
+            status: true,
+            id,
+            title: name,
+            image: image,
+            artist: artists,
+            duration: new Date(duration_ms).toISOString().substr(14, 5),
+            duration_ms,
+            download_link: `https://api.fabdl.com${downloadTask.download_url}`,
+            album: trackMetadata.album,
+            cover: trackMetadata.image,
+            isrc: trackMetadata.isrc || "N/A",
+            releaseDate: trackMetadata.releaseDate,
+            spotify_url: `https://open.spotify.com/track/${id}`
+        };
+
+        res.json(finalResult);
+
+    } catch (error) {
+        res.status(500).json({ status: false, message: error.message || 'An error occurred' });
+    }
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
 
 module.exports = app;
