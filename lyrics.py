@@ -55,6 +55,8 @@ HEADERS = {
 #Spotify sp_dc cookie extracted from Spotify Web 
 DEFAULT_SP_DC = "AQAO1j7bPbFcbVh5TbQmwmTd_XFckJhbOipaA0t2BZpViASzI6Qrk1Ty0WviN1K1mmJv_hV7xGVbMPHm4-HAZbs3OXOHSu38Xq7hZ9wqWwvdZwjiWTQmKWLoKxJP1j3kI7-8eWgVZ8TcPxRnXrjP3uDJ9SnzOla_EpxePC74dHa5D4nBWWfFLdiV9bMQuzUex6izb12gCh0tvTt3Xlg"
 
+#thanks to https://github.com/akashrchandran/syrics/blob/main/syrics/totp.py
+#for making that stable one 
 class TOTP:
     def __init__(self) -> None:
         self.secret, self.version = self.get_secret_version()
@@ -210,7 +212,7 @@ class LyricsResponse(BaseModel):
     raw_lyrics: Optional[dict]
     response_type: str
 
-@app.get("/lyrics", response_model=LyricsResponse, summary="Get track lyrics")
+@app.get("/spotify/lyrics", response_model=LyricsResponse, summary="Get track lyrics")
 async def get_lyrics(
     id: Optional[str] = Query(None, description="Spotify track ID"),
     url: Optional[str] = Query(None, description="Spotify track URL"),
