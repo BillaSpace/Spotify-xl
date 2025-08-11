@@ -20,11 +20,11 @@
       "dest": "/spdown.js"
     },
     {
-      "src": "/spotify/track",
+      "src": "/spotify/lyrics",
       "dest": "/lyrics.py"
     },
     {
-      "src": "/spotify/lyrics",
+      "src": "/spotify/track",
       "dest": "/sptrack.js"
     },
     {
