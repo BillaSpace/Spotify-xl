@@ -15,6 +15,7 @@ A lightweight Node.js backend service that provides seamless integration with Sp
   - Explicit content flags
   - Release dates
   - Spotify URIs
+- ✅ Spotify orignal lyrics fetch
 
 ## Requirements
 
