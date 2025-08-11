@@ -22,7 +22,10 @@ A lightweight Node.js backend service that provides seamless integration with Sp
 - Valid Spotify Developer credentials
 - Node.js environment
 - Basic server infrastructure
-- sp_dc cookie from [Spotify web](https://open.spotify.com/)
+- `sp_dc` cookie from [Spotify web](https://open.spotify.com/)
+
+>info
+>`sp_dc` needs in lyrics.py
 
 *Note: This service requires proper Spotify API authentication setup.*
 
